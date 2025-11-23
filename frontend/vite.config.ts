@@ -8,6 +8,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export default defineConfig({
   root: __dirname,
   plugins: [react()],
+  base: './', // Use relative paths for Electron
   server: {
     host: '127.0.0.1',
     port: 5173,
