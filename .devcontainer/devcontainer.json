@@ -1,0 +1,31 @@
+{
+  "name": "Backlog Accelerator",
+  "dockerFile": "Dockerfile",
+  "runArgs": ["--init"],
+  "remoteUser": "node",
+  "forwardPorts": [5173, 9229],
+  "postCreateCommand": "if [ -f package.json ]; then npm install; fi",
+  "containerEnv": {
+    "NODE_ENV": "development"
+  },
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {
+      "version": "latest",
+      "moby": false
+    }
+  },
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "bash"
+      },
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "github.vscode-github-actions",
+        "ms-azuretools.vscode-azureaccount",
+        "ms-playwright.playwright"
+      ]
+    }
+  }
+}

@@ -1,0 +1,4 @@
+/* Reset or global overrides if needed */
+body {
+  background-color: var(--mantine-color-gray-0);
+}
