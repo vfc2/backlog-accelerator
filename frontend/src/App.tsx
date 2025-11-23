@@ -13,8 +13,6 @@ import {
   ScrollArea,
   NavLink,
   Divider,
-  MantineProvider,
-  createTheme,
 } from '@mantine/core';
 import {
   IconSearch,
@@ -108,11 +106,6 @@ const backlogItems: BacklogItem[] = [
   },
 ];
 
-const theme = createTheme({
-  primaryColor: 'blue',
-  fontFamily: 'Inter, sans-serif',
-});
-
 const BacklogCard = ({ item }: { item: BacklogItem }) => {
   const badgeColor =
     item.type === 'epic'
@@ -174,13 +167,12 @@ function App() {
   }));
 
   return (
-    <MantineProvider theme={theme}>
-      <AppShell
-        header={{ height: 60 }}
-        navbar={{ width: 250, breakpoint: 'sm' }}
-        padding="md"
-        bg="gray.0"
-      >
+    <AppShell
+      header={{ height: 60 }}
+      navbar={{ width: 250, breakpoint: 'sm' }}
+      padding="md"
+      bg="gray.0"
+    >
         <AppShell.Header>
           <Group h="100%" px="md" justify="space-between">
             <Group>
@@ -302,8 +294,7 @@ function App() {
             </ScrollArea>
           </Stack>
         </AppShell.Main>
-      </AppShell>
-    </MantineProvider>
+    </AppShell>
   );
 }
 
