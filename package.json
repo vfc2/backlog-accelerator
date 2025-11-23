@@ -30,7 +30,7 @@
     "npm": ">=10.0.0"
   },
   "dependencies": {
-    "better-sqlite3": "^9.0.0",
+    "better-sqlite3": "^12.4.6",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "zod": "^3.23.8"
@@ -74,6 +74,32 @@
     ],
     "extraMetadata": {
       "main": "dist/main/main.js"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        },
+        {
+          "target": "zip",
+          "arch": ["x64"]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    },
+    "mac": {
+      "target": ["dmg", "zip"],
+      "category": "public.app-category.developer-tools"
+    },
+    "linux": {
+      "target": ["AppImage", "snap"],
+      "category": "Development"
     }
   },
   "lint-staged": {
