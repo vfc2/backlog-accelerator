@@ -223,9 +223,15 @@ const isEditableElement = (target: EventTarget | null) => {
   return tagName === 'INPUT' || tagName === 'TEXTAREA' || target.isContentEditable;
 };
 
+const typeColors: Record<BacklogItemType, string> = {
+  epic: '#ff7b00',
+  feature: '#773b93',
+  story: '#009ccc',
+  task: '#a4880a',
+};
+
 const BacklogCard = ({ item }: { item: BacklogItem }) => {
-  const badgeColor =
-    item.type === 'epic' ? 'orange' : item.type === 'feature' ? 'violet' : 'cyan';
+  const badgeColor = typeColors[item.type];
 
   const priorityColor =
     item.priority === 'HIGH'
@@ -247,7 +253,7 @@ const BacklogCard = ({ item }: { item: BacklogItem }) => {
     >
       <Stack gap="xs">
         <Group justify="space-between">
-          <Badge color={badgeColor} variant="light" size="sm">
+          <Badge color={badgeColor} variant="filled" size="sm">
             {item.type.toUpperCase()}
           </Badge>
           {item.effort && (
