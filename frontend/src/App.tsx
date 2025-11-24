@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type PointerEvent,
@@ -30,80 +31,184 @@ import {
   IconZoomOut,
 } from '@tabler/icons-react';
 
-type BacklogItemType = 'epic' | 'feature' | 'story';
+type BacklogItemType = 'epic' | 'feature' | 'story' | 'task';
 
-type BacklogItem = {
-  id: string;
+type EffortSize = 'XS' | 'S' | 'M' | 'L' | 'XL';
+
+interface BaseBacklogItem {
+  id: number;
   type: BacklogItemType;
   title: string;
   description: string;
+  effort: EffortSize;
   priority: 'LOW' | 'MEDIUM' | 'HIGH';
-  effort?: string;
-  parentId?: string;
-};
+}
+
+interface EpicBacklogItem extends BaseBacklogItem {
+  type: 'epic';
+}
+
+interface FeatureBacklogItem extends BaseBacklogItem {
+  type: 'feature';
+  parentId: number;
+}
+
+interface StoryBacklogItem extends BaseBacklogItem {
+  type: 'story';
+  parentId: number;
+  acceptanceCriteria: string[];
+  implementationDetails: string;
+  assumptions: string;
+}
+
+interface TaskBacklogItem extends BaseBacklogItem {
+  type: 'task';
+  parentId: number;
+}
+
+type BacklogItem =
+  | EpicBacklogItem
+  | FeatureBacklogItem
+  | StoryBacklogItem
+  | TaskBacklogItem;
+
+type BacklogTreeNode = BacklogItem & { children: BacklogTreeNode[] };
+
+const connectorColor = 'var(--mantine-color-gray-4)';
+const CARD_WIDTH = 320;
+const CARD_HEIGHT = 190;
+const HORIZONTAL_UNIT = CARD_WIDTH + 120;
+const LEVEL_HEIGHT = CARD_HEIGHT + 140;
+const ROOT_GAP_UNITS = 1;
 
 const backlogItems: BacklogItem[] = [
   {
-    id: 'epic-1',
+    id: 1,
     type: 'epic',
     title: 'Account & Contact Management',
     description:
       'Authoritative customer and organization data model with governance and consent.',
     priority: 'HIGH',
+    effort: 'XL',
   },
   {
-    id: 'feature-1',
-    parentId: 'epic-1',
+    id: 2,
+    parentId: 1,
     type: 'feature',
     title: 'Account Data Model & CRUD',
     description: 'Normalized extensible schema with auditing and optimistic concurrency.',
     priority: 'HIGH',
-    effort: 'M',
+    effort: 'L',
   },
   {
-    id: 'feature-2',
-    parentId: 'epic-1',
+    id: 3,
+    parentId: 1,
     type: 'feature',
     title: 'Contact Lifecycle & Consent',
     description: 'Manage consent capture, revocation, and channel preferences.',
     priority: 'HIGH',
-    effort: 'M',
+    effort: 'L',
   },
   {
-    id: 'story-1',
-    parentId: 'feature-1',
+    id: 4,
+    parentId: 2,
     type: 'story',
     title: 'Create Account Record',
     description: 'Persist mandatory legal identifiers and classification attributes.',
     priority: 'HIGH',
-    effort: 'S',
+    effort: 'M',
+    acceptanceCriteria: [
+      'User can submit required identity fields successfully',
+      'Record is versioned with immutable audit snapshot',
+      'Validation errors highlight missing or invalid data',
+    ],
+    implementationDetails:
+      'Implement GraphQL mutation backed by optimistic concurrency and audit triggers.',
+    assumptions: 'Legal identifiers are pre-validated by upstream KYC provider.',
   },
   {
-    id: 'story-2',
-    parentId: 'feature-1',
+    id: 5,
+    parentId: 2,
     type: 'story',
     title: 'Update Account With Audit Trail',
     description: 'Patch mutable fields while preserving immutable audit snapshots.',
     priority: 'MEDIUM',
     effort: 'S',
+    acceptanceCriteria: [
+      'PATCH request returns version and timestamp',
+      'Audit table captures before/after diff',
+      'Concurrent update attempt returns proper error',
+    ],
+    implementationDetails: 'Use PostgreSQL row-level security and jsonb diff for audits.',
+    assumptions: 'Consumers can tolerate eventual consistency (<1s).',
   },
   {
-    id: 'story-3',
-    parentId: 'feature-2',
+    id: 6,
+    parentId: 3,
     type: 'story',
     title: 'Create Contact With Consent Flags',
     description: 'Capture consent timestamps for marketing and service channels.',
     priority: 'HIGH',
     effort: 'S',
+    acceptanceCriteria: [
+      'Contact form persists per-channel consent timestamps',
+      'API enforces default opt-out for unspecified channels',
+      'Audit log records consent capture source',
+    ],
+    implementationDetails: 'Extend contact table with consent jsonb, include CDC feed.',
+    assumptions: 'Channels limited to email, sms, push for MVP.',
   },
   {
-    id: 'story-4',
-    parentId: 'feature-2',
+    id: 7,
+    parentId: 3,
     type: 'story',
     title: 'Update Contact Consent Preferences',
     description: 'Modify consent state with revocation audit history.',
     priority: 'MEDIUM',
     effort: 'XS',
+    acceptanceCriteria: [
+      'Revocation triggers timestamped audit entry',
+      'Preference center displays latest consent per channel',
+      'API rejects updates missing regulatory justification',
+    ],
+    implementationDetails: 'Expose REST endpoint gated by consent-admin scope.',
+    assumptions: 'Downstream systems poll CDC feed every 5 minutes.',
+  },
+  {
+    id: 8,
+    parentId: 4,
+    type: 'task',
+    title: 'Design Account GraphQL Schema',
+    description: 'Model account types, enums, and optimistic concurrency fields.',
+    priority: 'MEDIUM',
+    effort: 'S',
+  },
+  {
+    id: 9,
+    parentId: 4,
+    type: 'task',
+    title: 'Implement Audit Trigger',
+    description: 'Create database trigger to snapshot account row before updates.',
+    priority: 'HIGH',
+    effort: 'XS',
+  },
+  {
+    id: 10,
+    parentId: 6,
+    type: 'task',
+    title: 'Consent Form UI',
+    description: 'Build Mantine form with per-channel toggle and timestamps.',
+    priority: 'MEDIUM',
+    effort: 'S',
+  },
+  {
+    id: 11,
+    parentId: 7,
+    type: 'task',
+    title: 'CDC Consent Feed',
+    description: 'Publish consent changes to Kafka topic consumed by marketing stack.',
+    priority: 'MEDIUM',
+    effort: 'M',
   },
 ];
 
@@ -132,7 +237,14 @@ const BacklogCard = ({ item }: { item: BacklogItem }) => {
   const priorityLabel = `Priority • ${item.priority}`;
 
   return (
-    <Card withBorder radius="lg" w={320} shadow="sm">
+    <Card
+      withBorder
+      radius="lg"
+      w={CARD_WIDTH}
+      h={CARD_HEIGHT}
+      shadow="sm"
+      style={{ userSelect: 'none' }}
+    >
       <Stack gap="xs">
         <Group justify="space-between">
           <Badge color={badgeColor} variant="light" size="sm">
@@ -156,6 +268,137 @@ const BacklogCard = ({ item }: { item: BacklogItem }) => {
   );
 };
 
+const buildBacklogTree = (items: BacklogItem[]): BacklogTreeNode[] => {
+  const nodes = new Map<number, BacklogTreeNode>();
+
+  items.forEach((item) => {
+    nodes.set(item.id, { ...item, children: [] });
+  });
+
+  const roots: BacklogTreeNode[] = [];
+
+  nodes.forEach((node) => {
+    if ('parentId' in node && typeof node.parentId === 'number') {
+      const parent = nodes.get(node.parentId);
+      if (parent) {
+        parent.children.push(node);
+        return;
+      }
+    }
+    roots.push(node);
+  });
+
+  return roots;
+};
+
+type LayoutNode = {
+  node: BacklogTreeNode;
+  depth: number;
+  span: number;
+  center: number; // in unit space
+  children: LayoutNode[];
+};
+
+type PositionedNode = {
+  node: BacklogTreeNode;
+  x: number;
+  y: number;
+};
+
+type LayoutResult = {
+  nodes: PositionedNode[];
+  edges: Array<{ from: { x: number; y: number }; to: { x: number; y: number } }>;
+  width: number;
+  height: number;
+};
+
+const computeLayoutNode = (
+  node: BacklogTreeNode,
+  depth: number,
+  offset: number
+): LayoutNode => {
+  let span = 0;
+  const childrenLayouts = node.children.map((child) => {
+    const layout = computeLayoutNode(child, depth + 1, offset + span);
+    span += layout.span;
+    return layout;
+  });
+
+  if (span === 0) {
+    span = 1;
+  }
+
+  const center = offset + span / 2;
+
+  return {
+    node,
+    depth,
+    span,
+    center,
+    children: childrenLayouts,
+  };
+};
+
+const createLayout = (roots: BacklogTreeNode[]): LayoutResult | null => {
+  if (roots.length === 0) {
+    return null;
+  }
+
+  const layoutRoots: LayoutNode[] = [];
+  let offset = 0;
+
+  roots.forEach((root, index) => {
+    const layoutRoot = computeLayoutNode(root, 0, offset);
+    layoutRoots.push(layoutRoot);
+    offset += layoutRoot.span;
+    if (index < roots.length - 1) {
+      offset += ROOT_GAP_UNITS;
+    }
+  });
+
+  const allLayouts: LayoutNode[] = [];
+  const collectLayouts = (layoutNode: LayoutNode) => {
+    allLayouts.push(layoutNode);
+    layoutNode.children.forEach(collectLayouts);
+  };
+  layoutRoots.forEach(collectLayouts);
+
+  const positionedNodes: PositionedNode[] = allLayouts.map((layoutNode) => ({
+    node: layoutNode.node,
+    x: layoutNode.center * HORIZONTAL_UNIT,
+    y: layoutNode.depth * LEVEL_HEIGHT,
+  }));
+
+  const positionLookup = new Map<number, { x: number; y: number }>();
+  positionedNodes.forEach((p) => {
+    positionLookup.set(p.node.id, { x: p.x, y: p.y });
+  });
+
+  const edges: Array<{ from: { x: number; y: number }; to: { x: number; y: number } }> = [];
+
+  layoutRoots.forEach(function traverse(layoutNode) {
+    layoutNode.children.forEach((child) => {
+      const from = positionLookup.get(layoutNode.node.id);
+      const to = positionLookup.get(child.node.id);
+      if (from && to) {
+        edges.push({ from, to });
+      }
+      traverse(child);
+    });
+  });
+
+  const maxDepth = Math.max(...allLayouts.map((layoutNode) => layoutNode.depth));
+  const width = Math.max(offset * HORIZONTAL_UNIT, CARD_WIDTH * 2);
+  const height = (maxDepth + 1) * LEVEL_HEIGHT + CARD_HEIGHT;
+
+  return {
+    nodes: positionedNodes,
+    edges,
+    width,
+    height,
+  };
+};
+
 const App = () => {
   const zoomMin = 0.6;
   const zoomMax = 1.6;
@@ -168,14 +411,8 @@ const App = () => {
   const pointerStartRef = useRef({ x: 0, y: 0 });
   const canvasRef = useRef<HTMLDivElement | null>(null);
 
-  const epic = backlogItems.find((item) => item.type === 'epic');
-  const features = backlogItems.filter((item) => item.type === 'feature');
-  const storiesByFeature = features.map((feature) => ({
-    feature,
-    stories: backlogItems.filter(
-      (story) => story.type === 'story' && story.parentId === feature.id
-    ),
-  }));
+  const tree = buildBacklogTree(backlogItems);
+  const layout = useMemo(() => createLayout(tree), [tree]);
 
   const updateZoom = (value: number) => {
     setZoom(clamp(Number(value.toFixed(2)), zoomMin, zoomMax));
@@ -203,7 +440,7 @@ const App = () => {
   };
 
   const handlePointerDown = (event: PointerEvent<HTMLDivElement>) => {
-    if (event.button !== 0 && event.button !== 1) {
+    if (event.button !== 1) {
       return;
     }
     setIsPanning(true);
@@ -407,26 +644,83 @@ const App = () => {
                 transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
                 transformOrigin: 'top left',
                 transition: isPanning ? 'none' : 'transform 120ms ease-out',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: 48,
               }}
             >
-              {epic && <BacklogCard item={epic} />}
+              {layout ? (
+                <Box
+                  style={{
+                    position: 'relative',
+                    width: layout.width,
+                    height: layout.height,
+                  }}
+                >
+                  <svg
+                    width={layout.width}
+                    height={layout.height}
+                    style={{ position: 'absolute', inset: 0 }}
+                  >
+                    <defs>
+                      <marker
+                        id="backlog-arrow"
+                        markerWidth="7"
+                        markerHeight="7"
+                        refX="7"
+                        refY="3.5"
+                        orient="auto"
+                      >
+                        <path d="M 0 0 L 7 3.5 L 0 7 z" fill={connectorColor} />
+                      </marker>
+                    </defs>
+                    {layout.edges.map((edge, index) => {
+                      const startX = edge.from.x;
+                      const startY = edge.from.y + CARD_HEIGHT;
+                      const endX = edge.to.x;
+                      const endY = edge.to.y;
 
-              <Group align="flex-start" gap="xl">
-                {storiesByFeature.map(({ feature, stories }) => (
-                  <Stack key={feature.id} align="center" gap="md">
-                    <BacklogCard item={feature} />
-                    <Stack gap="md">
-                      {stories.map((story) => (
-                        <BacklogCard key={story.id} item={story} />
-                      ))}
-                    </Stack>
-                  </Stack>
-                ))}
-              </Group>
+                      const midY = (startY + endY) / 2;
+                      const radius = 12;
+
+                      let path = '';
+                      if (Math.abs(startX - endX) < 1) {
+                        path = `M ${startX} ${startY} L ${endX} ${endY}`;
+                      } else {
+                        const dirX = endX > startX ? 1 : -1;
+                        const verticalSpace = midY - startY;
+                        const horizontalSpace = Math.abs(endX - startX);
+                        const r = Math.min(radius, verticalSpace / 2, horizontalSpace / 2);
+
+                        path = `M ${startX} ${startY} L ${startX} ${midY - r} Q ${startX} ${midY} ${startX + dirX * r} ${midY} L ${endX - dirX * r} ${midY} Q ${endX} ${midY} ${endX} ${midY + r} L ${endX} ${endY}`;
+                      }
+
+                      return (
+                        <path
+                          key={`edge-${index}`}
+                          d={path}
+                          stroke={connectorColor}
+                          strokeWidth={2}
+                          fill="none"
+                          markerEnd="url(#backlog-arrow)"
+                        />
+                      );
+                    })}
+                  </svg>
+
+                  {layout.nodes.map((positioned) => (
+                    <Box
+                      key={positioned.node.id}
+                      style={{
+                        position: 'absolute',
+                        left: positioned.x - CARD_WIDTH / 2,
+                        top: positioned.y,
+                      }}
+                    >
+                      <BacklogCard item={positioned.node} />
+                    </Box>
+                  ))}
+                </Box>
+              ) : (
+                <Text c="dimmed">No backlog items to display</Text>
+              )}
             </Box>
           </Box>
         </Stack>
