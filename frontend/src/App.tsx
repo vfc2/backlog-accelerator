@@ -15,11 +15,10 @@ import {
   Card,
   Drawer,
   Group,
-  ScrollArea,
-  Select,
+  Paper,
+  SegmentedControl,
   Slider,
   Stack,
-  TagsInput,
   Text,
   TextInput,
   Title,
@@ -431,14 +430,20 @@ const RichEditorInput = ({
   label,
   value,
   onChange,
+  description,
+  minHeight = 220,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
+  description?: string;
+  minHeight?: number;
 }) => {
   const editor = useEditor({
     extensions: [
-      StarterKit,
+      StarterKit.configure({
+        link: false,
+      }),
       TiptapLink.configure({ openOnClick: false }),
     ],
     content: value,
@@ -455,10 +460,17 @@ const RichEditorInput = ({
   }, [value, editor]);
 
   return (
-    <Stack gap={4}>
-      <Text size="sm" fw={500}>
-        {label}
-      </Text>
+    <Stack gap={6}>
+      <Stack gap={2}>
+        <Text size="sm" fw={600}>
+          {label}
+        </Text>
+        {description && (
+          <Text size="xs" c="dimmed">
+            {description}
+          </Text>
+        )}
+      </Stack>
       <RichTextEditor editor={editor}>
         <RichTextEditor.Toolbar sticky stickyOffset={60}>
           <RichTextEditor.ControlsGroup>
@@ -489,7 +501,14 @@ const RichEditorInput = ({
           </RichTextEditor.ControlsGroup>
         </RichTextEditor.Toolbar>
 
-        <RichTextEditor.Content />
+        <RichTextEditor.Content
+          style={{
+            minHeight,
+            backgroundColor: 'var(--mantine-color-white)',
+            borderBottomLeftRadius: 12,
+            borderBottomRightRadius: 12,
+          }}
+        />
       </RichTextEditor>
     </Stack>
   );
@@ -497,12 +516,10 @@ const RichEditorInput = ({
 
 const BacklogItemEditor = ({
   item,
-  onSave,
-  onCancel,
+  onChange,
 }: {
   item: BacklogItem;
-  onSave: (item: BacklogItem) => void;
-  onCancel: () => void;
+  onChange?: (item: BacklogItem) => void;
 }) => {
   const [formData, setFormData] = useState<BacklogItem>(item);
 
@@ -511,69 +528,107 @@ const BacklogItemEditor = ({
   }, [item]);
 
   const handleChange = (field: string, value: unknown) => {
-    setFormData((prev) => ({ ...prev, [field]: value } as BacklogItem));
+    setFormData((prev) => {
+      const next = { ...prev, [field]: value } as BacklogItem;
+      onChange?.(next);
+      return next;
+    });
   };
 
+  const storyData = formData.type === 'story' ? (formData as StoryBacklogItem) : null;
+
   return (
-    <Stack gap="md">
-      <TextInput
-        label="Title"
-        value={formData.title}
-        onChange={(e) => handleChange('title', e.currentTarget.value)}
-      />
+    <Stack gap="lg">
+      <Paper withBorder shadow="xs" radius="lg" p="lg">
+        <Stack gap="lg">
+          <TextInput
+            label="Title"
+            value={formData.title}
+            onChange={(event) => handleChange('title', event.currentTarget.value)}
+          />
 
-      <Group grow>
-        <Select
-          label="Priority"
-          data={['LOW', 'MEDIUM', 'HIGH']}
-          value={formData.priority}
-          onChange={(val) => val && handleChange('priority', val)}
+          <Group gap="md" wrap="wrap">
+            <Stack gap={6} style={{ flex: 1, minWidth: 220 }}>
+              <Text size="sm" fw={600}>
+                Priority
+              </Text>
+              <SegmentedControl
+                fullWidth
+                data={[
+                  { label: 'Low', value: 'LOW' },
+                  { label: 'Medium', value: 'MEDIUM' },
+                  { label: 'High', value: 'HIGH' },
+                ]}
+                value={formData.priority}
+                onChange={(value) => handleChange('priority', value as BacklogItem['priority'])}
+              />
+            </Stack>
+            <Stack gap={6} style={{ flex: 1, minWidth: 220 }}>
+              <Text size="sm" fw={600}>
+                Effort
+              </Text>
+              <SegmentedControl
+                fullWidth
+                data={['XS', 'S', 'M', 'L', 'XL'].map((label) => ({
+                  label,
+                  value: label,
+                }))}
+                value={formData.effort}
+                onChange={(value) => handleChange('effort', value as EffortSize)}
+              />
+            </Stack>
+          </Group>
+        </Stack>
+      </Paper>
+
+      <Paper withBorder shadow="xs" radius="lg" p="lg">
+        <RichEditorInput
+          key={`desc-${item.id}`}
+          label="Description"
+          value={formData.description}
+          onChange={(val) => handleChange('description', val)}
+          description="Use headings, lists, and links to provide context."
+          minHeight={280}
         />
-        <Select
-          label="Effort"
-          data={['XS', 'S', 'M', 'L', 'XL']}
-          value={formData.effort}
-          onChange={(val) => val && handleChange('effort', val)}
-        />
-      </Group>
+      </Paper>
 
-      <RichEditorInput
-        key={`desc-${item.id}`}
-        label="Description"
-        value={formData.description}
-        onChange={(val) => handleChange('description', val)}
-      />
-
-      {formData.type === 'story' && (
-        <>
-          <TagsInput
-            label="Acceptance Criteria"
-            value={(formData as StoryBacklogItem).acceptanceCriteria || []}
-            onChange={(val) => handleChange('acceptanceCriteria', val)}
-          />
-          <RichEditorInput
-            key={`impl-${item.id}`}
-            label="Implementation Details"
-            value={(formData as StoryBacklogItem).implementationDetails || ''}
-            onChange={(val) => handleChange('implementationDetails', val)}
-          />
-          <RichEditorInput
-            key={`assump-${item.id}`}
-            label="Assumptions"
-            value={(formData as StoryBacklogItem).assumptions || ''}
-            onChange={(val) => handleChange('assumptions', val)}
-          />
-        </>
+      {storyData && (
+        <Paper withBorder shadow="xs" radius="lg" p="lg">
+          <Stack gap="lg">
+            <RichEditorInput
+              key={`criteria-${item.id}`}
+              label="Acceptance Criteria"
+              value={(storyData.acceptanceCriteria || []).map((criterion) => `<p>${criterion}</p>`).join('')}
+              onChange={(html) => {
+                const container = document.createElement('div');
+                container.innerHTML = html;
+                const lines = Array.from(container.querySelectorAll('p'))
+                  .map((p) => p.textContent?.trim() || '')
+                  .filter(Boolean);
+                handleChange('acceptanceCriteria', lines);
+              }}
+              description="List the conditions that must be true for this story to be accepted."
+              minHeight={220}
+            />
+            <RichEditorInput
+              key={`impl-${item.id}`}
+              label="Implementation Details"
+              value={storyData.implementationDetails || ''}
+              onChange={(val) => handleChange('implementationDetails', val)}
+              description="Highlight architecture, integrations, or sequencing considerations."
+              minHeight={220}
+            />
+            <RichEditorInput
+              key={`assump-${item.id}`}
+              label="Assumptions"
+              value={storyData.assumptions || ''}
+              onChange={(val) => handleChange('assumptions', val)}
+              description="Document any boundaries, risks, or scope exclusions."
+              minHeight={180}
+            />
+          </Stack>
+        </Paper>
       )}
-
-      <Group justify="flex-end" mt="md">
-        <Button variant="default" onClick={onCancel}>
-          Cancel
-        </Button>
-        <Button onClick={() => onSave(formData)} leftSection={<IconCheck size={16} />}>
-          Save Changes
-        </Button>
-      </Group>
     </Stack>
   );
 };
@@ -585,6 +640,7 @@ const App = () => {
 
   const [items, setItems] = useState(initialBacklogItems);
   const [editingItem, setEditingItem] = useState<BacklogItem | null>(null);
+  const [editingDraft, setEditingDraft] = useState<BacklogItem | null>(null);
 
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
@@ -601,6 +657,17 @@ const App = () => {
       prev.map((item) => (item.id === updatedItem.id ? updatedItem : item))
     );
     setEditingItem(null);
+    setEditingDraft(null);
+  };
+
+  const handleCloseEditor = () => {
+    setEditingItem(null);
+    setEditingDraft(null);
+  };
+
+  const handleEditItem = (itemToEdit: BacklogItem) => {
+    setEditingItem(itemToEdit);
+    setEditingDraft(itemToEdit);
   };
 
   const updateZoom = (value: number) => {
@@ -698,6 +765,8 @@ const App = () => {
       node.removeEventListener('wheel', handleWheel);
     };
   }, [adjustZoom]);
+
+  const activeEditorItem = editingDraft ?? editingItem;
 
   return (
     <AppShell header={{ height: 64 }} padding="md" bg="gray.0">
@@ -905,7 +974,7 @@ const App = () => {
                     >
                       <BacklogCard
                         item={positioned.node}
-                        onEdit={() => setEditingItem(positioned.node)}
+                        onEdit={() => handleEditItem(positioned.node)}
                       />
                     </Box>
                   ))}
@@ -920,30 +989,111 @@ const App = () => {
 
       <Drawer
         opened={!!editingItem}
-        onClose={() => setEditingItem(null)}
-        title={
-          <Group>
-            <Badge
-              color={editingItem ? typeColors[editingItem.type] : 'gray'}
-              variant="filled"
-            >
-              {editingItem?.type.toUpperCase()}
-            </Badge>
-            <Text fw={700}>Edit Item #{editingItem?.id}</Text>
-          </Group>
-        }
+        onClose={handleCloseEditor}
         position="right"
-        size="xl"
-        padding="md"
+        size="65%"
+        padding={0}
+        withOverlay
+        styles={{
+          content: {
+            display: 'flex',
+            flexDirection: 'column',
+            backgroundColor: 'var(--mantine-color-gray-1)',
+          },
+          header: {
+            padding: '24px 32px 12px',
+            borderBottom: '1px solid var(--mantine-color-gray-3)',
+            flexShrink: 0,
+          },
+          title: { width: '100%' },
+          body: {
+            padding: 0,
+            flex: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden',
+          },
+        }}
+        title={
+          activeEditorItem && (
+            <Stack gap={4} pr={40}>
+              <Text fw={700} size="lg" style={{ lineHeight: 1.2 }}>
+                {activeEditorItem.title}
+              </Text>
+              <Group gap="xs" align="center" wrap="wrap">
+                <Badge size="sm" color={typeColors[activeEditorItem.type]}>
+                  {activeEditorItem.type.toUpperCase()}
+                </Badge>
+                <Badge
+                  size="sm"
+                  color={
+                    activeEditorItem.priority === 'HIGH'
+                      ? 'red'
+                      : activeEditorItem.priority === 'MEDIUM'
+                      ? 'yellow'
+                      : 'gray'
+                  }
+                >
+                  Priority • {activeEditorItem.priority}
+                </Badge>
+                <Badge size="sm" variant="outline" color="gray">
+                  Effort • {activeEditorItem.effort}
+                </Badge>
+                <Text size="xs" c="dimmed">
+                  ID #{activeEditorItem.id}
+                </Text>
+              </Group>
+            </Stack>
+          )
+        }
       >
-        {editingItem && (
-          <ScrollArea h="calc(100vh - 80px)">
-            <BacklogItemEditor
-              item={editingItem}
-              onSave={handleSave}
-              onCancel={() => setEditingItem(null)}
-            />
-          </ScrollArea>
+        {editingItem && activeEditorItem && (
+          <>
+            <Box
+              style={{
+                flex: 1,
+                minHeight: 0,
+                overflowY: 'auto',
+                backgroundColor: 'var(--mantine-color-gray-0)',
+              }}
+            >
+              <Box px="xl" py="xl">
+                <BacklogItemEditor item={activeEditorItem} onChange={setEditingDraft} />
+              </Box>
+            </Box>
+            <Box
+              component="footer"
+              px="xl"
+              py="md"
+              style={{
+                flexShrink: 0,
+                borderTop: '1px solid var(--mantine-color-blue-2)',
+                backgroundColor: 'var(--mantine-color-blue-0)',
+                boxShadow: '0 -4px 12px rgba(15, 23, 42, 0.08)',
+                zIndex: 1,
+              }}
+              role="region"
+              aria-label="Editor actions"
+            >
+              <Group justify="space-between" align="center" wrap="wrap">
+                <Text size="sm" c="var(--mantine-color-blue-9)" fw={500}>
+                  Review your updates before saving.
+                </Text>
+                <Group gap="sm" wrap="wrap">
+                  <Button variant="default" onClick={handleCloseEditor} size="md">
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={() => activeEditorItem && handleSave(activeEditorItem)}
+                    leftSection={<IconCheck size={16} />}
+                    size="md"
+                  >
+                    Save Item
+                  </Button>
+                </Group>
+              </Group>
+            </Box>
+          </>
         )}
       </Drawer>
     </AppShell>
